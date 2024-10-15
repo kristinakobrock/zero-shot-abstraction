@@ -63,7 +63,11 @@ def plot_heatmap(result_list,
             for l in range(3):
                 if not np.isnan(heatmap[l, k]):
                     ax = plt.gca()
-                    _ = ax.text(l, k, np.round(heatmap[k, l], 2), ha="center", va="center", color="k",
+                    if np.round(heatmap[k,l],2) <0.1:
+                        color = "white"
+                    else:
+                        color = "k"
+                    _ = ax.text(l, k, np.round(heatmap[k, l], 2), ha="center", va="center", color=color,
                                 fontsize=fontsize)
 
         if suptitle:
