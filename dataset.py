@@ -16,7 +16,7 @@ class DataSet(torch.utils.data.Dataset):
     """
 
     def __init__(self, properties_dim=[3, 3, 3], game_size=10, scaling_factor=10, device='cuda', testing=False,
-                 zero_shot=False, zero_shot_test=None, sample_context=False, granularity="mixed"):
+                 zero_shot=False, zero_shot_test=None):
         """
         properties_dim: vector that defines how many attributes and features per attributes the dataset should contain,
         defaults to a 3x3x3 dataset
@@ -28,16 +28,6 @@ class DataSet(torch.utils.data.Dataset):
         self.game_size = game_size
         self.scaling_factor = scaling_factor
         self.device = device
-        self.sample_context = sample_context
-        self.granularity = granularity
-
-        # check if granularity has one of the allowed values
-        if granularity not in ["mixed", "fine", "coarse"]:
-            raise ValueError("Granularity must be one of: 'mixed', 'fine', or 'coarse'.")
-
-        # check that sample context is not used together with fine or coarse granularities
-        if sample_context and granularity in ["fine", "coarse"]:
-            raise ValueError("Sample context can only be applied in the mixed granularity (standard) condition.")
 
         # get all concepts
         self.concepts = self.get_all_concepts()
@@ -82,26 +72,8 @@ class DataSet(torch.utils.data.Dataset):
                 nr_possible_contexts = sum(self.concepts[concept_idx][1])
                 # for each concept, we can consider all possible context conditions -> "mixed" granularity
                 # i.e. 1 for generic concepts, and up to len(properties_dim) for more specific concepts
-                if not self.sample_context:
-                    # standard: take all possible context conditions
-                    if self.granularity == "mixed":
-                        for context_condition in range(nr_possible_contexts):
-                            train_and_val.append(
-                                self.get_item(concept_idx, context_condition, self._many_hot_encoding, include_concept))
-                    # fine context condition has n_fixed-1 shared attributes between targets and distractors
-                    # n.b. the non-shared attributes is *not* fixed
-                    elif self.granularity == "fine":
-                        train_and_val.append(
-                            self.get_item(concept_idx, nr_possible_contexts - 1, self._many_hot_encoding,
-                                          include_concept))
-                    # coarse context condition has no shared attributes between targets and distractors
-                    elif self.granularity == "coarse":
-                        train_and_val.append(
-                            self.get_item(concept_idx, 0, self._many_hot_encoding, include_concept))
-
-                # or sample context condition from possible context conditions
-                else:
-                    context_condition = random.choice(range(nr_possible_contexts))
+                # standard: take all possible context conditions
+                for context_condition in range(nr_possible_contexts):
                     train_and_val.append(
                         self.get_item(concept_idx, context_condition, self._many_hot_encoding, include_concept))
 
@@ -117,18 +89,13 @@ class DataSet(torch.utils.data.Dataset):
         for concept_idx in tqdm(concept_indices[ratio:]):
             for _ in range(self.scaling_factor):
                 nr_possible_contexts = sum(self.concepts[concept_idx][1])
-                if not self.sample_context:
-                    for context_condition in range(nr_possible_contexts):
-                        test.append(
-                            self.get_item(concept_idx, context_condition, self._many_hot_encoding, include_concept))
-                # or sample context condition from possible context conditions
-                else:
-                    context_condition = random.choice(range(nr_possible_contexts))
-                    test.append(self.get_item(concept_idx, context_condition, self._many_hot_encoding, include_concept))
+                for context_condition in range(nr_possible_contexts):
+                    test.append(
+                        self.get_item(concept_idx, context_condition, self._many_hot_encoding, include_concept))
 
         return train, val, test
 
-    def get_zero_shot_datasets(self, split_ratio, test_cond='generic', include_concept=False):
+    def get_zero_shot_datasets(self, split_ratio, test_cond='generic'):
         """
         Note: Generates train, val and test data. 
             Test and training set contain different concepts. There are two possible datasets:
@@ -157,67 +124,28 @@ class DataSet(torch.utils.data.Dataset):
                 # i.e. 1 for generic concepts, and up to len(properties_dim) for more specific concepts
                 nr_possible_contexts = sum(self.concepts[concept_idx][1])
                 # standard: take all possible context conditions
-                if self.granularity == "mixed" and not self.sample_context:
-                    for context_condition in range(nr_possible_contexts):
-                        # 1) 'generic'
-                        if test_cond == 'generic':
-                            # test dataset only contains most generic concepts
-                            if nr_possible_contexts == 1:
-                                assert context_condition == 0, (f'generic concepts only in coarse contexts but is '
-                                                                f'{context_condition}')
-                                test.append(
-                                    self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                                  include_concept))
-                            else:
-                                train_and_val.append(
-                                    self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                                  include_concept))
-
-                        # 2) 'specific'
-                        elif test_cond == 'specific':
-                            # test dataset only contains most specific concepts
-                            if nr_possible_contexts == len(self.properties_dim):
-                                test.append(
-                                    self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                                  include_concept))
-                            else:
-                                train_and_val.append(
-                                    self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                                  include_concept))
-
-                # fine contexts only:
-                elif self.granularity == "fine":
-                    context_condition = nr_possible_contexts - 1
-                elif self.granularity == "coarse":
-                    context_condition = 0
-                elif self.sample_context and self.granularity == "mixed":
-                    context_condition = random.choice(range(nr_possible_contexts))
-
-                if not (self.granularity == "mixed" and not self.sample_context):
+                for context_condition in range(nr_possible_contexts):
                     # 1) 'generic'
                     if test_cond == 'generic':
                         # test dataset only contains most generic concepts
                         if nr_possible_contexts == 1:
-                            context_condition = 0 # for generic concepts, only coarse context condition exists
+                            assert context_condition == 0, (f'generic concepts only in coarse contexts but is '
+                                                            f'{context_condition}')
                             test.append(
-                                self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                              include_concept))
+                                self.get_item(concept_idx, context_condition, self._many_hot_encoding))
                         else:
                             train_and_val.append(
-                                self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                              include_concept))
+                                self.get_item(concept_idx, context_condition, self._many_hot_encoding))
 
                     # 2) 'specific'
                     elif test_cond == 'specific':
                         # test dataset only contains most specific concepts
                         if nr_possible_contexts == len(self.properties_dim):
                             test.append(
-                                self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                              include_concept))
+                                self.get_item(concept_idx, context_condition, self._many_hot_encoding))
                         else:
                             train_and_val.append(
-                                self.get_item(concept_idx, context_condition, self._many_hot_encoding,
-                                              include_concept))
+                                self.get_item(concept_idx, context_condition, self._many_hot_encoding))
 
         # Train val split
         train_samples = int(len(train_and_val) * train_ratio)
@@ -245,12 +173,7 @@ class DataSet(torch.utils.data.Dataset):
         # The concrete sampled objects can differ between sender and receiver.
         sender_concept, sender_context = self.get_sample(concept_idx, context_condition)
         receiver_concept, receiver_context = self.get_sample(concept_idx, context_condition)
-        # TODO: change such that sender input also includes fixed vectors (i.e. full concepts) and fixed vectors are only
-        # ignored in the sender architecture
-        # NOTE: also do this for context conditions?
         # initalize sender and receiver input with target objects only
-        if include_concept == True:
-            raise NotImplementedError
 
         # subset such that only target objects are presented to sender and receiver
         sender_targets = sender_concept[0]
@@ -270,11 +193,6 @@ class DataSet(torch.utils.data.Dataset):
                 for obj in distractor_objects:
                     receiver_input.append(obj)
         # sender input does not need to be shuffled - that way I don't need labels either
-        # random.shuffle(sender_input)
-        # sender_label = [idx for idx, obj in enumerate(sender_input) if obj in sender_targets]
-        # sender_label = torch.Tensor(sender_label).to(torch.int64)
-        # sender_label = F.one_hot(sender_label, num_classes=self.game_size*2).sum(dim=0).float()
-        # shuffle receiver input and create (many-hot encoded) label
         random.shuffle(receiver_input)
         receiver_label = [idx for idx, obj in enumerate(receiver_input) if obj in receiver_targets]
         receiver_label = torch.Tensor(receiver_label).to(torch.int64).to(device=self.device)
@@ -283,7 +201,6 @@ class DataSet(torch.utils.data.Dataset):
         sender_input = torch.stack([encoding_func(elem) for elem in sender_input])
         receiver_input = torch.stack([encoding_func(elem) for elem in receiver_input])
         # output needs to have the structure sender_input, labels, receiver_input
-        # return torch.cat([sender_input, sender_label]), receiver_label, receiver_input
         return sender_input, receiver_label, receiver_input
 
     def get_sample(self, concept_idx, context_condition):
@@ -527,84 +444,3 @@ class DataSet(torch.utils.data.Dataset):
 
         return output
 
-
-def get_distractors_old(self, concept_idx):
-    """
-        Returns all possible distractor objects for each context based on a given target concept.
-        return (context, distractor_objects) tuples
-        """
-
-    target_objects, fixed = self.concepts[concept_idx]
-    fixed = list(fixed)
-
-    def change_one_attribute(input_object, fixed):
-        """
-            Returns a concept where one attribute is changed.
-            Input: A concept consisting of an (example) object and a fixed vector indicating which attributes are fixed in the concept.
-            Output: A list of concepts consisting of an (example) object that differs in one attribute from the input object and a new fixed vector.
-            """
-        changed_concepts = []
-        # go through target object and fixed
-        # O(n_attributes)
-        for i, attribute in enumerate(input_object):
-            # check whether attribute in target object is fixed
-            if fixed[i] == 1:
-                # change one attribute to all possible attributes that don't match the target_object
-                # O(n_values)
-                for poss_attribute in range(self.properties_dim[i]):
-                    # new_fixed = fixed.copy() # change proposed by ChatGPT
-                    if poss_attribute != attribute:
-                        new_fixed = fixed.copy()  # change proposed by ChatGPT
-                        new_fixed[i] = 0
-                        changed = list(input_object)
-                        changed[i] = poss_attribute
-                        # the new fixed values specify where the change took place: (1,1,0) means the change took place in 3rd attribute
-                        changed_concepts.append((changed, new_fixed))
-        return changed_concepts
-
-    def change_n_attributes(input_object, fixed, n_attributes):
-        """
-            Changes a given number of attributes from a target object
-                given a fixed vector (specifiying the attributes that can and should be changed)
-                and a target object
-                and a number of how many attributes should be changed.
-            """
-        changed_concepts = list()
-        # O(n_attributes),
-        while (n_attributes > 0):
-            # if changed_concepts is empty, I consider the target_object
-            if not changed_concepts:
-                changed_concepts = [change_one_attribute(input_object, fixed)]
-                n_attributes = n_attributes - 1
-            # otherwise consider the changed concepts and change them again	 until n_attributes = 0
-            else:
-                old_changed_concepts = changed_concepts.copy()
-                # O(game_size)
-                for sublist in changed_concepts:
-                    for (changed_concept, fixed) in sublist:
-                        new_changed_concepts = change_one_attribute(changed_concept, fixed)
-                        if new_changed_concepts not in old_changed_concepts:
-                            old_changed_concepts.append(new_changed_concepts)
-                # copy and store for next iteration
-                changed_concepts = old_changed_concepts.copy()
-                n_attributes = n_attributes - 1
-        # flatten list
-        changed_concepts_flattened = [changed_concept for sublist in changed_concepts for changed_concept in sublist]
-        # remove doubles
-        changed_concepts_final = []
-        [changed_concepts_final.append(x) for x in changed_concepts_flattened if x not in changed_concepts_final]
-        return changed_concepts_final
-
-    # distractors: number and position of fixed attributes match target concept
-    # the more fixed attributes are shared, the finer the context
-    distractor_concepts = change_n_attributes(target_objects[0], fixed, sum(fixed))
-    # the fixed vectors in the distractor_concepts indicate the number of shared features: (1,0,0) means only first attribute is shared
-    # thus sum(fixed) indicates the context condition: from 0 = coarse to n_attributes = fine
-    # for the dataset I need objects instead of concepts
-    distractor_objects = []
-    for dist_concept in distractor_concepts:
-        # same fixed vector as for the target concept
-        distractor_objects.extend(
-            [(self.get_all_objects_for_a_concept(self.properties_dim, dist_concept[0], fixed), tuple(dist_concept[1]))])
-
-    return distractor_objects
