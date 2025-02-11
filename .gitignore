@@ -3,3 +3,5 @@
 *.tar
 **/interaction*
 *.ds
+.ipynb_checkpoints/
+*__pycache__*
