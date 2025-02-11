@@ -1,0 +1,6 @@
+fixed indices,fixed values,context condition,message,counts,symbols,symbol MI
+"[0, 1, 2]","[3, 0, 4]",,,,,
+,,1.0,"(3, 7, 4, 0)",1.0,,
+,,,,,25.0,0.09469521943307024
+,,,,,3.0,0.5745133278124743
+,,,,,1.0,0.18555566956349095
