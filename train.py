@@ -9,9 +9,8 @@ import os
 import pickle
 
 import dataset
-from archs import Sender, Receiver, RSASender
+from archs import Sender, Receiver
 import itertools
-import time
 
 SPLIT = (0.6, 0.2, 0.2)
 SPLIT_ZERO_SHOT = (0.75, 0.25)
