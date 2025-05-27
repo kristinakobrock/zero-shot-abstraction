@@ -1,4 +1,4 @@
-# zero-shot-abstraction
+# zero-shot-abstraction [![DOI](https://zenodo.org/badge/871153084.svg)](https://doi.org/10.5281/zenodo.15525663)
 This repository accompanies an anonymous ACL submission: Agents can generalize to novel levels of abstraction with the help of
 language.
 
