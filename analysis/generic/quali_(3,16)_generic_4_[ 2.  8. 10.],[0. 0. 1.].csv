@@ -1,0 +1,2 @@
+game_nr,target,fixed indices,context condition,distractor,message,accuracy
+12,[ 2.  8. 10.],[0. 0. 1.],0,[4. 7. 6.],"[30, 48, 8]",0.6078125238418579
